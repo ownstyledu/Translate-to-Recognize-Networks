@@ -23,4 +23,13 @@ Almost all the settings of experiments are configurable by the files in the ***c
 * torchvision 0.2.1
 * tensorboardX
 
-
+## Citation
+If you use this code for your research, please cite:
+```
+@article{du2019translate,
+  title={Translate-to-Recognize Networks for RGB-D Scene Recognition},
+  author={Du, Dapeng and Wang, Limin and Wang, Huiling and Zhao, Kai and Wu, Gangshan},
+  journal={arXiv preprint arXiv:1904.12254},
+  year={2019}
+}
+```
