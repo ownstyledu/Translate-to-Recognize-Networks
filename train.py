@@ -74,7 +74,7 @@ num_classes_train = list(Counter([i[1] for i in train_loader.dataset.imgs]).valu
 cfg.CLASS_WEIGHTS_TRAIN = torch.FloatTensor(num_classes_train)
 
 writer = SummaryWriter(log_dir=cfg.LOG_PATH)  # tensorboard
-model = TRecgNet(cfg, writer)
+model = TRecgNet(cfg, writer=writer)
 model.set_data_loader(train_loader, val_loader, unlabeled_loader)
 
 def train():
