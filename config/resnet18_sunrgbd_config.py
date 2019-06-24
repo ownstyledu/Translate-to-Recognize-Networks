@@ -18,7 +18,7 @@ class RESNET18_SUNRGBD_CONFIG:
         batch_size = 40
         direction = 'AtoB'           # AtoB: RGB->Depth
         # direction = 'BtoA'
-        loss = ['CLS','SEMANTIC']    # remove 'SEMANTIC' if trained with unlabeled data
+        loss = ['CLS','SEMANTIC']    # remove 'CLS' if trained with unlabeled data
         no_upsample = False          # True for removing Decoder network
         unlabeled = False            # True for training with unlabeled data
         content_layers = '0,1,2,3,4' # layer-wise semantic layers, you can change it to better adapt your task
@@ -66,7 +66,7 @@ class RESNET18_SUNRGBD_CONFIG:
             'NITER': 20,
             'NITER_DECAY': 80,
             'NITER_TOTAL': 100,
-            'EVALUATE': False, # True if you want to check the test result after each epoch
+            'EVALUATE': True, # True if you want to check the test result after each epoch
 
             # translation task
             'WHICH_CONTENT_NET': 'resnet18',
