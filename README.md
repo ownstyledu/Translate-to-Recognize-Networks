@@ -14,6 +14,10 @@ use ***util.splitimages.py*** to help change the format if neccessary.
 Almost all the settings of experiments are configurable by the files in the ***config*** package.
 4. Train.  
 `python train.py`
+5. ***[New]*** New branch 'multi-gpu' has been uploaded, making losses calculated on each gpu for better balanced usage of multi gpus.
+You could use this version using this command:
+`git clone -b multi-gpu https://github.com/ownstyledu/Translate-to-Recognize-Networks.git project_name`
+6. ***[New]*** In ***multi-gpu*** brach, we add more loss types in the training, e.g., GAN, pixel2pixel intensity. You could easily add these losses by modifying the config file.
 
 ## Development Environment
 * NVIDIA TITAN XP
@@ -24,12 +28,14 @@ Almost all the settings of experiments are configurable by the files in the ***c
 * tensorboardX
 
 ## Citation
-If you use this code for your research, please cite:
+Please cite the following paper if you feel this repository useful.
 ```
-@article{du2019translate,
+@inproceedings{du2019translate,
   title={Translate-to-Recognize Networks for RGB-D Scene Recognition},
   author={Du, Dapeng and Wang, Limin and Wang, Huiling and Zhao, Kai and Wu, Gangshan},
-  journal={arXiv preprint arXiv:1904.12254},
+  booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
+  pages={11836--11845},
   year={2019}
 }
+
 ```
