@@ -13,7 +13,7 @@ use ***util.splitimages.py*** to help change the format if neccessary.
 3. Configuration.  
 Almost all the settings of experiments are configurable by the files in the ***config*** package.
 4. Train.  
-`python train.py`
+`python train.py` or 'bash train.sh' (this will record log to saved file)
 5. ***[New]*** New branch 'multi-gpu' (more recommended) has been uploaded, making losses calculated on each gpu for better balanced usage of multi gpus.
 You could use this version using this command:
 `git clone -b multi-gpu https://github.com/ownstyledu/Translate-to-Recognize-Networks.git project_name`
