@@ -12,8 +12,8 @@ use ***util.splitimages.py*** to help change the format if neccessary.
    * Use ***util.conc_modalities.py*** to concatenate each paired RGB and depth images to one image for more efficient data loading. An example is shown below(depth data is encoded using HHA format).
    ![blockchain](images/conc_data.png)
    * We provide links to download SUN RGB-D data in ImageFolder format and depth data has been encoded using HHA format.
-   1. RGB and depth data is concatenated, [link](http://mcg.nju.edu.cn/dataset/dataset/sun-rgbd_conc.tar)
-   2. RGB and depth data is stored separately, [link](http://mcg.nju.edu.cn/dataset/dataset/sun-rgbd_split.tar)
+   1. RGB and depth data is concatenated, [link](http://mcg.nju.edu.cn/dataset/sun-rgbd_conc.tar)
+   2. RGB and depth data is stored separately, [link](http://mcg.nju.edu.cn/dataset/sun-rgbd_split.tar)
 3. Configuration.  
 Almost all the settings of experiments are configurable by the files in the ***config*** package.
 4. Train.  
