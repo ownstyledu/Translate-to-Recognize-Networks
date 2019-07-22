@@ -22,7 +22,7 @@ class RESNET18_SUNRGBD_CONFIG:
         content_layers = '0,1,2,3,4'    # layer-wise semantic layers, you can change it to better adapt your task
 
         # use generated data while training
-        use_fake = True
+        use_fake = False
         sample_path = os.path.join('trecg_AtoB_100.pth')    # path of saved TrecgNet model for generating fake images
         resume = False
         resume_path = os.path.join('/your_saved_model_path')    # path of loading TrecgNet model
