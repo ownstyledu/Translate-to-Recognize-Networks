@@ -1,5 +1,6 @@
 import os
 import time
+import copy
 from collections import OrderedDict
 from collections import defaultdict
 
@@ -102,9 +103,11 @@ class TRecgNet(BaseModel):
             print('Use fake data: sample model is {0}'.format(cfg.SAMPLE_MODEL_PATH))
             sample_model_path = os.path.join(cfg.CHECKPOINTS_DIR, cfg.SAMPLE_MODEL_PATH)
             checkpoint = torch.load(sample_model_path)
-            model = networks.TRecgNet_Upsample_Resiual(cfg, not self.use_noise, upsample=True, device=self.device)
-            self.load_checkpoint(model, sample_model_path, checkpoint, data_para=True)
-            self.sample_model = nn.DataParallel(model).to(self.device)
+            cfg_sample = copy.deepcopy(cfg)
+            cfg_sample.USE_FAKE_DATA = False    # since it passes the same forward used by the main model
+            sample_model = networks.TRecgNet_Upsample_Resiual(cfg_sample, use_noise=not self.use_noise, upsample=True, device=self.device)
+            self.load_checkpoint(sample_model, sample_model_path, checkpoint, data_para=True, keep_fc=False)
+            self.sample_model = sample_model.to(self.device)
             self.sample_model.eval()
 
         train_total_steps = 0
@@ -149,6 +152,9 @@ class TRecgNet(BaseModel):
                     errors = self.get_current_errors()
                     t = (time.time() - iter_start_time)
                     self.print_current_errors(errors, epoch, i, t)
+
+            model_filename = '{0}_{1}_{2}.pth'.format(cfg.MODEL, cfg.WHICH_DIRECTION, cfg.NITER_TOTAL)
+            self.save_checkpoint(cfg.NITER_TOTAL, model_filename)
 
             print('iters in one epoch:', iters)
 
@@ -209,7 +215,7 @@ class TRecgNet(BaseModel):
             if self.sample_model is not None:
                 with torch.no_grad():
                     out_keys = self.build_output_keys(gen_img=True, cls=False)
-                    [fake_source], self.loss = self.sample_model(source=self.target_modal,
+                    [fake_source] = self.sample_model(source=self.target_modal,
                                                       out_keys=out_keys, return_losses=False)
                 input_num = len(fake_source)
                 index = [i for i in range(0, input_num) if np.random.uniform() > 1 - self.cfg.FAKE_DATA_RATE]
@@ -324,9 +330,10 @@ class TRecgNet(BaseModel):
         filepath = os.path.join(self.save_dir, filename)
         torch.save(state, filepath)
 
-    def load_checkpoint(self, net, checkpoint_path, checkpoint, optimizer=None, data_para=True):
+    def load_checkpoint(self, net, checkpoint_path, checkpoint, optimizer=None, data_para=True, keep_fc=None):
 
-        keep_fc = not self.cfg.NO_FC
+        # keep_fc = not self.cfg.NO_FC
+        keep_fc = keep_fc if keep_fc is not None else not self.cfg.NO_FC
 
         if os.path.isfile(checkpoint_path):
 

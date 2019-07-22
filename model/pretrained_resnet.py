@@ -12,8 +12,8 @@ class ResNet(nn.Module):
 
             if cfg.CONTENT_PRETRAINED == 'place':
                 resnet_model = models.__dict__['resnet18'](num_classes=365)
-                load_path = "/home/dudapeng/workspace/pretrained/resnet18_places365.pth"
-                checkpoint = torch.load(load_path, map_location=lambda storage, loc: storage)
+                # places model downloaded from http://places2.csail.mit.edu/
+                checkpoint = torch.load(cfg.CONTENT_MODEL_PATH, map_location=lambda storage, loc: storage)
                 state_dict = {str.replace(k, 'module.', ''): v for k, v in checkpoint['state_dict'].items()}
                 resnet_model.load_state_dict(state_dict)
                 print('content model pretrained using place')

@@ -192,8 +192,6 @@ class TRecgNet_Upsample_Resiual(nn.Module):
 
         dims = [32, 64, 128, 256, 512, 1024, 2048]
 
-        fc_input_nc = dims[4] if encoder == 'resnet18' else dims[6]
-
         if cfg.PRETRAINED == 'imagenet' or cfg.PRETRAINED == 'place':
             pretrained = True
         else:
@@ -201,8 +199,8 @@ class TRecgNet_Upsample_Resiual(nn.Module):
 
         if cfg.PRETRAINED == 'place':
             resnet = models.__dict__['resnet18'](num_classes=365)
-            load_path = "/home/dudapeng/workspace/pretrained/resnet18_places365.pth"
-            checkpoint = torch.load(load_path, map_location=lambda storage, loc: storage)
+            # places model downloaded from http://places2.csail.mit.edu/
+            checkpoint = torch.load(self.cfg.CONTENT_MODEL_PATH, map_location=lambda storage, loc: storage)
             state_dict = {str.replace(k, 'module.', ''): v for k, v in checkpoint['state_dict'].items()}
             resnet.load_state_dict(state_dict)
             print('place resnet18 loaded....')
@@ -222,7 +220,7 @@ class TRecgNet_Upsample_Resiual(nn.Module):
         self.build_upsample_layers(dims)
 
         self.avgpool = nn.AvgPool2d(self.avg_pool_size, 1)
-        self.fc = nn.Linear(fc_input_nc, cfg.NUM_CLASSES)
+        self.fc = nn.Linear(dims[4], cfg.NUM_CLASSES)
 
         if pretrained and upsample:
 
