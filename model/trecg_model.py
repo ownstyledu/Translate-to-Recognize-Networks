@@ -128,7 +128,7 @@ class TRecgNet(BaseModel):
             cfg_sample = copy.deepcopy(cfg)
             cfg_sample.USE_FAKE_DATA = False
             cfg_sample.NO_UPSAMPLE = False
-            model = networks.define_TrecgNet(cfg_sample, not self.use_noise, upsample=True, device=self.device)
+            model = networks.define_TrecgNet(cfg_sample, use_noise=not self.use_noise, upsample=True, device=self.device)
             self.load_checkpoint(model, sample_model_path, checkpoint, data_para=True)
             self.sample_model = nn.DataParallel(model).to(self.device)
             self.sample_model.eval()
