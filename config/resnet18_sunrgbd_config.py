@@ -4,38 +4,37 @@ from datetime import datetime
 class RESNET18_SUNRGBD_CONFIG:
 
     def args(self):
-        args = {'ROOT_DIR': '/home/dudapeng/workspace/trecgnet/summary/resnet18'}
+
         current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-
         ########### Quick Setup ############
-
-        modality = 'rgb'
-        task_name = 'specific_task_name'
-        lr_schedule = 'lambda'       # lambda|step|plateau
+        log_path = 'summary'            # path for tensorboardX log file
+        lr_schedule = 'lambda'          # lambda|step|plateau
         pretrained = 'place'
         content_pretrained = 'place'
-        gpus = '7'                   # gpu no. you can add more gpus with comma, e.g., '0,1,2'
-        batch_size = 40
-        direction = 'AtoB'           # AtoB: RGB->Depth
-        # direction = 'BtoA'
-        loss = ['CLS','SEMANTIC']    # remove 'CLS' if trained with unlabeled data
-        no_upsample = False          # True for removing Decoder network
-        unlabeled = False            # True for training with unlabeled data
-        content_layers = '0,1,2,3,4' # layer-wise semantic layers, you can change it to better adapt your task
-
-        len_gpu = str(len(gpus.split(',')))
+        gpus = '0,1'                    # gpu no. you can add more gpus with comma, e.g., '0,1,2'
+        batch_size = 80
+        # direction = 'AtoB'              # AtoB: RGB->Depth
+        direction = 'BtoA'
+        loss = ['CLS', 'SEMANTIC']      # remove 'CLS' if trained with unlabeled data
+        no_upsample = False             # True for removing Decoder network
+        unlabeled = False               # True for training with unlabeled data
+        content_model_path = 'resnet18_places365.pth'      # places model downloaded from http://places2.csail.mit.edu/
+        content_layers = '0,1,2,3,4'    # layer-wise semantic layers, you can change it to better adapt your task
 
         # use generated data while training
-        use_fake = False
-        sample_path = os.path.join('/home/dudapeng/workspace/trecgnet/resnet18/sample_model/', content_pretrained,
-                                 'trecg_AtoB_best.pth')
+        use_fake = True
+        sample_path = os.path.join('trecg_AtoB_100.pth')    # path of saved TrecgNet model for generating fake images
         resume = False
-        resume_path = os.path.join('/home/dudapeng/workspace/trecgnet/resnet18/sample_model/', content_pretrained,
-                     '10k_place_AtoB.pth')
+        resume_path = os.path.join('/your_saved_model_path')    # path of loading TrecgNet model
 
-        log_path = os.path.join(args['ROOT_DIR'], 'sunrgbd', modality, content_pretrained,
-                                ''.join([task_name, '_', lr_schedule, '_', 'gpu('+len_gpu+')'
-                                ]), current_time)
+
+        # summary_dir_root = '/home/dudapeng/workspace/trecgnet/summary/resnet18'  # dir for saving files from tensorboardX
+        # modality = 'rgb'
+        # task_name = 'your_task_name'  # name for tensorboardX log file
+        # len_gpu = str(len(gpus.split(',')))
+        # log_path = os.path.join(summary_dir_root, 'sunrgbd', modality, content_pretrained,
+        #                         ''.join([task_name, '_', lr_schedule, '_', 'gpu('+len_gpu+')'
+        #                         ]), current_time)
         return {
 
             'GPU_IDS': gpus,
@@ -56,6 +55,7 @@ class RESNET18_SUNRGBD_CONFIG:
             'UNLABELED': unlabeled,
             'USE_FAKE_DATA': use_fake,
             'SAMPLE_MODEL_PATH': sample_path,
+            'CONTENT_MODEL_PATH': content_model_path,
 
             # TRAINING / TEST
             'RESUME': resume,

@@ -23,7 +23,9 @@ class DefaultConfig:
     SAMPLE_MODEL_PATH = None
     CHECKPOINTS_DIR = './checkpoints'
     ROOT_DIR = '/home/dudapeng/workspace/trecgnet/'
+    SUMMARY_DIR_ROOT = '/home/dudapeng/workspace/trecgnet/summary/'
     LOG_PATH = None
+    CONTENT_MODEL_PATH = ''
 
     # DATA
     DATA_TYPE = 'pair'  # pair | single
