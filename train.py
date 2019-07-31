@@ -10,13 +10,13 @@ from tensorboardX import SummaryWriter
 import data.aligned_conc_dataset as dataset
 import util.utils as util
 from config.default_config import DefaultConfig
-from config.resnet18_sunrgbd_config import RESNET18_SUNRGBD_CONFIG
+from config.resnet_sunrgbd_config import RESNET_SUNRGBD_CONFIG
 from data import DataProvider
-from model.trecg_model import TRecgNet
+from model.models import create_model
 
 cfg = DefaultConfig()
 args = {
-    'resnet18': RESNET18_SUNRGBD_CONFIG().args(),
+    'resnet_sunrgbd': RESNET_SUNRGBD_CONFIG().args(),
 }
 
 # Setting random seed
@@ -26,7 +26,7 @@ random.seed(cfg.MANUAL_SEED)
 torch.manual_seed(cfg.MANUAL_SEED)
 
 # args for different backbones
-cfg.parse(args['resnet18'])
+cfg.parse(args['resnet_sunrgbd'])
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cfg.GPU_IDS
 device_ids = torch.cuda.device_count()
@@ -74,16 +74,16 @@ num_classes_train = list(Counter([i[1] for i in train_loader.dataset.imgs]).valu
 cfg.CLASS_WEIGHTS_TRAIN = torch.FloatTensor(num_classes_train)
 
 writer = SummaryWriter(log_dir=cfg.LOG_PATH)  # tensorboard
-model = TRecgNet(cfg, writer)
+model = create_model(cfg, writer)
 model.set_data_loader(train_loader, val_loader, unlabeled_loader)
+
 
 def train():
 
     if cfg.RESUME:
         checkpoint_path = os.path.join(cfg.CHECKPOINTS_DIR, cfg.RESUME_PATH)
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = model.load_checkpoint(model.net, checkpoint_path, keep_kw_module=False, keep_fc=True)
         load_epoch = checkpoint['epoch']
-        model.load_checkpoint(model.net, checkpoint_path, checkpoint, data_para=True)
         cfg.START_EPOCH = load_epoch
 
         if cfg.INIT_EPOCH:
@@ -102,6 +102,7 @@ def train():
 
     if writer is not None:
         writer.close()
+
 
 if __name__ == '__main__':
     train()

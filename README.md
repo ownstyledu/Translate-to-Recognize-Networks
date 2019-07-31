@@ -18,11 +18,12 @@ use ***util.splitimages.py*** to help change the format if neccessary.
 Almost all the settings of experiments are configurable by the files in the ***config*** package.
 4. Train.  
 `python train.py` or `bash train.sh`
-5. ***[\!\!New\!\!]*** New branch 'multi-gpu' (more recommended) has been uploaded, making losses calculated on each gpu for better balanced usage of multi gpus.
+5. [~~\!\!New\!\!~~]*** New branch 'multi-gpu' has been uploaded, making losses calculated on each gpu for better balanced usage of multi gpus.
 You could use this version using this command: \
 `git clone -b multi-gpu https://github.com/ownstyledu/Translate-to-Recognize-Networks.git TrecgNet`
-6. ***[\!\!New\!\!]*** In ***multi-gpu*** brach, we add more loss types in the training, e.g., GAN, pixel2pixel intensity. You could easily add these losses by modifying the config file.
-
+6. [~~\!\!New\!\!~~]*** In ***multi-gpu*** brach, we add more loss types in the training, e.g., GAN, pixel2pixel intensity. You could easily add these losses by modifying the config file.
+7. ***[\!\!New 2019.7.31\!\!]*** We added the fusion model, and reconstructed the code, including reusing the base model and making some modifications on decoder structure and config file. 
+***Due to the time limitation, we don't simultaneously update the multi-gpu branch. But you could still refer to it if you want.***
 ## Development Environment
 * NVIDIA TITAN XP
 * cuda 9.0

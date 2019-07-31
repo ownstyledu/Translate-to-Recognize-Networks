@@ -51,12 +51,13 @@ def unfix_grad(net):
 
     net.apply(fix_func)
 
-def define_TrecgNet(cfg, use_noise, upsample=None, device=None):
+
+def define_TrecgNet(cfg, upsample=None, device=None):
+
     if upsample is None:
         upsample = not cfg.NO_UPSAMPLE
 
-    model = TRecgNet_Upsample_Resiual(cfg, encoder=cfg.ARCH, upsample=upsample,
-                        use_noise=use_noise, device=device)
+    model = TRecgNet_Upsample_Resiual(cfg, encoder=cfg.ARCH, upsample=upsample, device=device)
 
     return model
 
@@ -114,26 +115,38 @@ class Upsample_Interpolate(nn.Module):
         return x, conv_out
 
 
-class UpBasicBlock(nn.Module):
-    expansion = 1
+class UpsampleBasicBlock(nn.Module):
 
-    def __init__(self, inplanes, planes, norm, upsample=None):
-        super(UpBasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, stride=1, padding=0, bias=False)
+    def __init__(self, inplanes, planes, kernel_size=3, stride=1, padding=1, norm=nn.BatchNorm2d, scale=2, mode='bilinear', upsample=True):
+        super(UpsampleBasicBlock, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
         self.bn1 = norm(planes)
         self.relu = nn.ReLU(inplace=True)
-
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm(planes)
 
-        self.upsample = upsample
+        if upsample:
+            if inplanes != planes:
+                kernel_size, padding = 1, 0
+            else:
+                kernel_size, padding = 3, 1
+
+            self.upsample = nn.Sequential(
+                nn.Conv2d(inplanes, planes, kernel_size=kernel_size, stride=1, padding=padding, bias=False),
+                norm(planes))
+        else:
+            self.upsample = None
+
+        self.scale = scale
+        self.mode = mode
 
     def forward(self, x):
 
-        residual = x
         if self.upsample is not None:
-            x, conv_out = self.upsample(x, activate=False)
-            residual = conv_out
+            x = nn.functional.interpolate(x, scale_factor=self.scale, mode=self.mode, align_corners=True)
+            residual = self.upsample(x)
+        else:
+            residual = x
 
         out = self.conv1(x)
         out = self.bn1(out)
@@ -178,15 +191,13 @@ class Content_Model(nn.Module):
 
 class TRecgNet_Upsample_Resiual(nn.Module):
 
-    def __init__(self, cfg, encoder='resnet18', upsample=True,
-                 use_noise=False, device=None):
+    def __init__(self, cfg, encoder='resnet18', upsample=True,  device=None):
         super(TRecgNet_Upsample_Resiual, self).__init__()
 
         self.encoder = encoder
         self.cfg = cfg
         self.upsample = upsample
         self.dim_noise = 128
-        self.use_noise = use_noise
         self.device = device
         self.avg_pool_size = 14
 
@@ -253,23 +264,17 @@ class TRecgNet_Upsample_Resiual(nn.Module):
         # norm = nn.BatchNorm2d
         norm = nn.InstanceNorm2d
 
-        self.inplanes = dims[4] + self.dim_noise if self.use_noise else dims[4]
-        self.up1 = Upsample_Interpolate(self.inplanes, dims[3], kernel_size=1, padding=0, norm=norm, activate=True)
+        # self.inplanes = dims[4] + self.dim_noise if self.use_noise else dims[4]
+        self.up1 = UpsampleBasicBlock(dims[4], dims[3], kernel_size=1, padding=0, norm=norm)
+        self.up2 = UpsampleBasicBlock(dims[3], dims[2], kernel_size=1, padding=0, norm=norm)
+        self.up3 = UpsampleBasicBlock(dims[2], dims[1], kernel_size=1, padding=0, norm=norm)
+        self.up4 = UpsampleBasicBlock(dims[1], dims[1], kernel_size=3, padding=1, norm=norm)
 
-        self.inplanes = dims[3]
-        self.up2 = self._make_upsample(UpBasicBlock, 128, norm=norm, is_upsample=True)
-        self.up3 = self._make_upsample(UpBasicBlock, 64, norm=norm, is_upsample=True)
-        self.up4 = self._make_upsample(UpBasicBlock, 64, norm=norm, is_upsample=True)
-
-        skip3_channel = dims[3]
-        skip2_channel = dims[2]
-        skip1_channel = dims[1]
-        self.skip_3 = conv_norm_relu(skip3_channel, skip3_channel, kernel_size=1, padding=0, norm=norm)
-        self.skip_2 = conv_norm_relu(skip2_channel, skip2_channel, kernel_size=1, padding=0, norm=norm)
-        self.skip_1 = conv_norm_relu(skip1_channel, skip1_channel, kernel_size=1, padding=0, norm=norm)
+        self.skip_3 = conv_norm_relu(dims[3], dims[3], kernel_size=1, padding=0, norm=norm)
+        self.skip_2 = conv_norm_relu(dims[2], dims[2], kernel_size=1, padding=0, norm=norm)
+        self.skip_1 = conv_norm_relu(dims[1], dims[1], kernel_size=1, padding=0, norm=norm)
 
         self.up_image = nn.Sequential(
-            conv_norm_relu(64, 64, kernel_size=3, padding=1, norm=norm),
             nn.Conv2d(64, 3, 7, 1, 3, bias=False),
             nn.Tanh()
         )
@@ -284,18 +289,11 @@ class TRecgNet_Upsample_Resiual(nn.Module):
         out['4'] = self.layer4(out['3'])
 
         if self.upsample and 'gen_img' in out_keys:
-
-            if self.use_noise:
-                noise = torch.FloatTensor(source.size(0), self.dim_noise, self.avg_pool_size,
-                                          self.avg_pool_size).normal_(0, 1).to(self.device)
-                _, upconv4 = self.up1(torch.cat((out['4'], noise), 1))
-            else:
-                _, upconv4 = self.up1(out['4'], activate=True)
-
             skip1 = self.skip_1(out['1'])  # 64 / 128
             skip2 = self.skip_2(out['2'])  # 128 / 256
             skip3 = self.skip_3(out['3'])  # 256 / 512
 
+            upconv4 = self.up1(out['4'])
             upconv3 = self.up2(upconv4 + skip3)
             upconv2 = self.up3(upconv3 + skip2)
             upconv1 = self.up4(upconv2 + skip1)
@@ -305,6 +303,69 @@ class TRecgNet_Upsample_Resiual(nn.Module):
         out['avgpool'] = self.avgpool(out['4'])
         avgpool = out['avgpool'].view(source.size(0), -1)
         out['cls'] = self.fc(avgpool)
+
+        result = []
+        for key in out_keys:
+            if isinstance(key, list):
+                item = [out[subkey] for subkey in key]
+            else:
+                item = out[key]
+            result.append(item)
+
+        return result
+
+
+class Fusion(nn.Module):
+
+    def __init__(self, cfg, rgb_model=None, depth_model=None, device='cuda'):
+        super(Fusion, self).__init__()
+        self.cfg = cfg
+        self.device = device
+        self.rgb_model = rgb_model
+        self.depth_model = depth_model
+        self.net_RGB = self.construct_single_modal_net(rgb_model)
+        self.net_depth = self.construct_single_modal_net(depth_model)
+
+        if cfg.FIX_GRAD:
+            fix_grad(self.net_RGB)
+            fix_grad(self.net_depth)
+
+        self.avgpool = nn.AvgPool2d(14, 1)
+        self.fc = nn.Sequential(
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(1024, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(1024, cfg.NUM_CLASSES)
+        )
+
+        init_weights(self.fc, 'normal')
+
+    # only keep the classification branch
+    def construct_single_modal_net(self, model):
+        if isinstance(model, nn.DataParallel):
+            model = model.module
+
+        ops = [model.conv1, model.bn1, model.relu, model.layer1, model.layer2,
+                                   model.layer3, model.layer4]
+        return nn.Sequential(*ops)
+
+    def set_cls_criterion(self, criterion):
+        self.cls_criterion = criterion.to(self.device)
+
+    def forward(self, input_rgb, input_depth, label, out_keys=None):
+
+        out = {}
+
+        rgb_specific = self.net_RGB(input_rgb)
+        depth_specific = self.net_depth(input_depth)
+
+        concat = torch.cat((rgb_specific, depth_specific), 1).to(self.device)
+        x = self.avgpool(concat)
+        x = x.view(x.size(0), -1)
+        out['cls'] = self.fc(x)
 
         result = []
         for key in out_keys:

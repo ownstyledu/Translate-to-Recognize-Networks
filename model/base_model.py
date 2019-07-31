@@ -6,12 +6,13 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 from torch.optim import lr_scheduler
+import numpy as np
+import util.utils as util
 
 
+# some common actions are abstracted here
+# customized ones could be implemented in the corresponding model
 class BaseModel(nn.Module):
-
-    def name(self):
-        pass
 
     def __init__(self, cfg):
         super(BaseModel, self).__init__()
@@ -22,7 +23,8 @@ class BaseModel(nn.Module):
         self.multi_gpu = num_gpu > 1
         self.model = None
         self.device = torch.device('cuda' if self.gpu_ids else 'cpu')
-        self.save_dir = os.path.join(self.cfg.CHECKPOINTS_DIR, self.cfg.MODEL, str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time()))))
+        self.save_dir = os.path.join(self.cfg.CHECKPOINTS_DIR, self.cfg.MODEL,
+                                     str(time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))))
         if os.path.exists(self.save_dir):
             shutil.rmtree(self.save_dir)
             os.mkdir(self.save_dir)
@@ -67,8 +69,8 @@ class BaseModel(nn.Module):
 
         pass
 
-    # choose labelled or unlabelled dataset
-    def get_dataloader(self, cfg, epoch):
+    # choose labelled or unlabelled dataset for training
+    def get_train_loader(self, cfg):
         if cfg.UNLABELED:
             print('Training with no labeled data..., training image: {0}'.format(
                 len(self.unlabeled_loader.dataset.imgs)))
@@ -128,7 +130,6 @@ class BaseModel(nn.Module):
     def set_log_data(self, cfg):
         pass
 
-
     def print_current_errors(self, errors, epoch, i=None, t=None):
         if i is None:
             message = '(Training Loss_avg [Epoch:{0}]) '.format(epoch)
@@ -141,3 +142,121 @@ class BaseModel(nn.Module):
             else:
                 message += '{key}: {value:.3f} '.format(key=k, value=v)
         print(message)
+
+    def set_optimizer(self, cfg):
+
+        self.optimizers = []
+        # self.optimizer = torch.optim.Adam([{'params': self.net.fc.parameters(), 'lr': cfg.LR}], lr=cfg.LR / 10, betas=(0.5, 0.999))
+
+        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=cfg.LR, betas=(0.5, 0.999))
+        print('optimizer: ', self.optimizer)
+        self.optimizers.append(self.optimizer)
+
+    def _optimize(self, loss):
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def _cal_loss(self, epoch):
+
+        pass
+
+    def build_output_keys(self, gen_img=True, cls=True):
+
+        out_keys = []
+
+        if gen_img:
+            out_keys.append('gen_img')
+
+        if cls:
+            out_keys.append('cls')
+
+        return out_keys
+
+    def load_checkpoint(self, net=None, checkpoint_path=None, keep_kw_module=True, keep_fc=None):
+
+        keep_fc = keep_fc if keep_fc is not None else not self.cfg.NO_FC
+
+        if os.path.isfile(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path)
+            state_model = net.state_dict()
+            state_checkpoint = checkpoint['state_dict']
+
+            # the weights of ckpt are stored when data-paralleled, remove 'module' if you
+            # update the raw model with such ckpt
+            if not keep_kw_module:
+                new_state_dict = OrderedDict()
+                for k, v in state_checkpoint.items():
+                    name = k[7:]
+                    new_state_dict[name] = v
+                state_checkpoint = new_state_dict
+
+            if keep_fc:
+                states_ckp = {k: v for k, v in state_checkpoint.items() if k in state_model}
+            else:
+                states_ckp = {k: v for k, v in state_checkpoint.items() if k in state_model and 'fc' not in k}
+
+            # if successfully load weights
+            assert (len(states_ckp) > 0)
+
+            state_model.update(states_ckp)
+            net.load_state_dict(state_model)
+            print('load ckpt {0}'.format(checkpoint_path))
+            return checkpoint
+
+        else:
+            print("=> !!! No checkpoint found at '{}'".format(checkpoint_path))
+            return
+
+    def evaluate(self, cfg):
+
+        self.phase = 'test'
+
+        # switch to evaluate mode
+        self.net.eval()
+
+        self.imgs_all = []
+        self.pred_index_all = []
+        self.target_index_all = []
+        self.fake_image_num = 0
+
+        with torch.no_grad():
+
+            print('# Cls val images num = {0}'.format(self.val_image_num))
+            # batch_index = int(self.val_image_num / cfg.BATCH_SIZE)
+            # random_id = random.randint(0, batch_index)
+
+            for i, data in enumerate(self.val_loader):
+                self.set_input(data, self.cfg.DATA_TYPE)
+
+                self._forward()
+                self._process_fc()
+
+                # accuracy
+                prec1 = util.accuracy(self.cls.data, self.label, topk=(1,))
+                self.loss_meters['VAL_CLS_ACC'].update(prec1[0].item(), self.batch_size)
+
+        # Mean ACC
+        mean_acc = self._cal_mean_acc(cfg=cfg, data_loader=self.val_loader)
+        print('mean_acc: [{0}]'.format(mean_acc))
+        return mean_acc
+
+    def _process_fc(self):
+
+        pred, self.pred_index = util.process_output(self.cls.data)
+
+        self.pred_index_all.extend(list(self.pred_index))
+        self.target_index_all.extend(list(self._label.numpy()))
+
+    def _cal_mean_acc(self, cfg, data_loader):
+
+        mean_acc = util.mean_acc(np.array(self.target_index_all), np.array(self.pred_index_all),
+                                 cfg.NUM_CLASSES,
+                                 data_loader.dataset.classes)
+        return mean_acc
+
+    def _forward(self):
+
+        pass
+

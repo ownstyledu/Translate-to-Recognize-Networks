@@ -35,7 +35,7 @@ class TRecgNet(BaseModel):
 
         # networks
         self.use_noise = cfg.WHICH_DIRECTION == 'BtoA'
-        self.net = networks.define_TrecgNet(cfg, self.use_noise, device=self.device)
+        self.net = networks.define_TrecgNet(cfg, device=self.device)
         networks.print_network(self.net)
 
 
@@ -72,15 +72,6 @@ class TRecgNet(BaseModel):
 
         return out_keys
 
-    def _optimize(self, cfg, epoch):
-
-        self._forward(epoch)
-
-        self.optimizer.zero_grad()
-        total_loss = self._construct_TRAIN_G_LOSS(epoch)
-        total_loss.backward()
-        self.optimizer.step()
-
     def train_parameters(self, cfg):
 
         assert (self.cfg.LOSS_TYPES)
@@ -91,7 +82,7 @@ class TRecgNet(BaseModel):
         if 'SEMANTIC' in self.cfg.LOSS_TYPES:
             self.criterion_content = torch.nn.L1Loss()
             self.content_model = networks.Content_Model(cfg, self.criterion_content).to(self.device)
-            assert (self.cfg.CONTENT_LAYERS)
+            assert(self.cfg.CONTENT_LAYERS)
             self.content_layers = self.cfg.CONTENT_LAYERS.split(',')
 
         self.set_optimizer(cfg)
@@ -102,11 +93,10 @@ class TRecgNet(BaseModel):
         if cfg.USE_FAKE_DATA:
             print('Use fake data: sample model is {0}'.format(cfg.SAMPLE_MODEL_PATH))
             sample_model_path = os.path.join(cfg.CHECKPOINTS_DIR, cfg.SAMPLE_MODEL_PATH)
-            checkpoint = torch.load(sample_model_path)
             cfg_sample = copy.deepcopy(cfg)
             cfg_sample.USE_FAKE_DATA = False    # since it passes the same forward used by the main model
-            sample_model = networks.TRecgNet_Upsample_Resiual(cfg_sample, use_noise=not self.use_noise, upsample=True, device=self.device)
-            self.load_checkpoint(sample_model, sample_model_path, checkpoint, data_para=True, keep_fc=False)
+            sample_model = networks.define_TrecgNet(cfg_sample, use_noise=not self.use_noise, upsample=True, device=self.device)
+            self.load_checkpoint(sample_model, sample_model_path, keep_kw_module=True, keep_fc=False)
             self.sample_model = sample_model.to(self.device)
             self.sample_model.eval()
 
@@ -121,7 +111,7 @@ class TRecgNet(BaseModel):
             self.target_index_all = []
 
             start_time = time.time()
-            data_loader = self.get_dataloader(cfg, epoch)
+            data_loader = self.get_train_loader(cfg)
 
             if cfg.LR_POLICY != 'plateau':
                 self.update_learning_rate(epoch=epoch)
@@ -146,7 +136,9 @@ class TRecgNet(BaseModel):
                 train_total_iter += 1
                 iters += 1
 
-                self._optimize(cfg, epoch)
+                self._forward()
+                loss = self._cal_loss(epoch)
+                self._optimize(loss)
 
                 if train_total_steps % cfg.PRINT_FREQ == 0:
                     errors = self.get_current_errors()
@@ -171,7 +163,7 @@ class TRecgNet(BaseModel):
             # Validate cls
             if cfg.EVALUATE:
 
-                mean_acc = self.evaluate(cfg=self.cfg, epoch=epoch)
+                mean_acc = self.evaluate(cfg=self.cfg)
 
                 print('Mean Acc Epoch <{epoch}> * Prec@1 <{mean_acc:.3f}> '
                       .format(epoch=epoch, mean_acc=mean_acc))
@@ -202,7 +194,7 @@ class TRecgNet(BaseModel):
             print('-' * 80)
 
     # encoder-decoder branch
-    def _forward(self, epoch=None):
+    def _forward(self):
 
         self.gen = None
         self.source_modal_show = None
@@ -226,13 +218,11 @@ class TRecgNet(BaseModel):
             if 'CLS' not in self.cfg.LOSS_TYPES or self.cfg.UNLABELED:
 
                 out_keys = self.build_output_keys(gen_img=True, cls=False)
-                [self.gen] = self.net(source=self.source_modal, out_keys=out_keys,
-                                                 content_layers=self.content_layers)
+                [self.gen] = self.net(source=self.source_modal, out_keys=out_keys, content_layers=self.content_layers)
 
             elif self.upsample:
                 out_keys = self.build_output_keys(gen_img=True, cls=True)
-                [self.gen, self.cls] = self.net(source=self.source_modal, out_keys=out_keys,
-                                                           content_layers=self.content_layers)
+                [self.gen, self.cls] = self.net(source=self.source_modal, out_keys=out_keys, content_layers=self.content_layers)
             else:
                 out_keys = self.build_output_keys(gen_img=False, cls=True)
                 [self.cls] = self.net(source=self.source_modal, out_keys=out_keys)
@@ -253,7 +243,7 @@ class TRecgNet(BaseModel):
                 out_keys = self.build_output_keys(gen_img=False, cls=True)
                 [self.cls] = self.net(self.source_modal, label=self.label, out_keys=out_keys)
 
-    def _construct_TRAIN_G_LOSS(self, epoch=None):
+    def _cal_loss(self, epoch=None):
 
         loss_total = torch.zeros(1)
         if self.use_gpu:
@@ -293,7 +283,6 @@ class TRecgNet(BaseModel):
         # total loss
         return loss_total
 
-
     def set_log_data(self, cfg):
 
         self.loss_meters = defaultdict()
@@ -330,96 +319,16 @@ class TRecgNet(BaseModel):
         filepath = os.path.join(self.save_dir, filename)
         torch.save(state, filepath)
 
-    def load_checkpoint(self, net, checkpoint_path, checkpoint, optimizer=None, data_para=True, keep_fc=None):
+    def _load_checkpoint(self, net, checkpoint_path, optimizer=None, keep_kw_module=True, keep_fc=None):
 
-        # keep_fc = not self.cfg.NO_FC
-        keep_fc = keep_fc if keep_fc is not None else not self.cfg.NO_FC
+        checkpoint = super().load_checkpoint(net, checkpoint_path=checkpoint_path, keep_kw_module=keep_kw_module,
+                                             keep_fc=keep_fc)
 
-        if os.path.isfile(checkpoint_path):
+        if self.phase == 'train' and not self.cfg.INIT_EPOCH:
+            optimizer.load_state_dict(checkpoint['optimizer'])
 
-            state_dict = net.state_dict()
-            state_checkpoint = checkpoint['state_dict']
-            if data_para:
-                new_state_dict = OrderedDict()
-                for k, v in state_checkpoint.items():
-                    name = k[7:]
-                    new_state_dict[name] = v
-                state_checkpoint = new_state_dict
-
-            if keep_fc:
-                pretrained_G = {k: v for k, v in state_checkpoint.items() if k in state_dict}
-            else:
-                pretrained_G = {k: v for k, v in state_checkpoint.items() if k in state_dict and 'fc' not in k}
-
-            state_dict.update(pretrained_G)
-            net.load_state_dict(state_dict)
-
-            if self.phase == 'train' and not self.cfg.INIT_EPOCH:
-                optimizer.load_state_dict(checkpoint['optimizer'])
-
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(checkpoint_path, checkpoint['epoch']))
-        else:
-            print("=> !!! No checkpoint found at '{}'".format(self.cfg.RESUME))
-            return
-
-    def set_optimizer(self, cfg):
-
-        self.optimizers = []
-        # self.optimizer = torch.optim.Adam([{'params': self.net.fc.parameters(), 'lr': cfg.LR}], lr=cfg.LR / 10, betas=(0.5, 0.999))
-
-        self.optimizer = torch.optim.Adam(self.net.parameters(), lr=cfg.LR, betas=(0.5, 0.999))
-        print('optimizer: ', self.optimizer)
-        self.optimizers.append(self.optimizer)
-
-    def evaluate(self, cfg, epoch=None):
-
-        self.phase = 'test'
-
-        # switch to evaluate mode
-        self.net.eval()
-
-        self.imgs_all = []
-        self.pred_index_all = []
-        self.target_index_all = []
-
-        with torch.no_grad():
-
-            print('# Cls val images num = {0}'.format(self.val_image_num))
-
-            for i, data in enumerate(self.val_loader):
-                self.set_input(data, self.cfg.DATA_TYPE)
-
-                self._forward()
-                self._process_fc()
-
-                if not cfg.INFERENCE:
-                    # loss
-                    cls_loss = self.criterion_cls(self.cls, self.label) * self.cfg.ALPHA_CLS
-                    self.loss_meters['VAL_CLS_LOSS'].update(round(cls_loss.item(), 4), self.batch_size)
-
-                # accuracy
-                prec1 = util.accuracy(self.cls.data, self.label, topk=(1,))
-                self.loss_meters['VAL_CLS_ACC'].update(prec1[0].item(), self.batch_size)
-
-        # Mean ACC
-        mean_acc = self._cal_mean_acc(cfg=cfg, data_loader=self.val_loader)
-        print('mean_acc:', mean_acc)
-        return mean_acc
-
-    def _process_fc(self):
-
-        pred, self.pred_index = util.process_output(self.cls.data)
-
-        self.pred_index_all.extend(list(self.pred_index))
-        self.target_index_all.extend(list(self._label.numpy()))
-
-    def _cal_mean_acc(self, cfg, data_loader):
-
-        mean_acc = util.mean_acc(np.array(self.target_index_all), np.array(self.pred_index_all),
-                                 cfg.NUM_CLASSES,
-                                 data_loader.dataset.classes)
-        return mean_acc
+        print("=> loaded checkpoint '{}' (iter {})"
+              .format(checkpoint_path, checkpoint['iter']))
 
     def _write_loss(self, phase, global_step):
 
@@ -444,7 +353,7 @@ class TRecgNet(BaseModel):
                                       torchvision.utils.make_grid(self.source_modal_show[:6].clone().cpu().data, 3,
                                                                   normalize=True), global_step=global_step)
                 self.writer.add_image('Train_Gen', torchvision.utils.make_grid(self.gen[:6].clone().cpu().data, 3,
-                                                                                 normalize=True),
+                                                                               normalize=True),
                                       global_step=global_step)
                 self.writer.add_image('Train_Target',
                                       torchvision.utils.make_grid(self.target_modal_show[:6].clone().cpu().data, 3,
@@ -464,8 +373,7 @@ class TRecgNet(BaseModel):
                 self.writer.add_image('Val_Source',
                                       torchvision.utils.make_grid(self.source_modal_show[:6].clone().cpu().data, 3,
                                                                   normalize=True), global_step=global_step)
-                self.writer.add_image('Val_Gen', torchvision.utils.make_grid(self.gen[:6].clone().cpu().data, 3,
-                                                                               normalize=True), global_step=global_step)
-                self.writer.add_image('Val_Target',
-                                          torchvision.utils.make_grid(self.target_modal_show[:6].clone().cpu().data, 3,
-                                                                  normalize=True), global_step=global_step)
+                self.writer.add_image('Val_Gen', torchvision.utils.make_grid(self.gen[:6].clone().cpu().data,
+                                                                             3, normalize=True), global_step=global_step)
+                self.writer.add_image('Val_Target', torchvision.utils.make_grid(self.target_modal_show[:6].clone().cpu()
+                                                                                .data, 3, normalize=True), global_step=global_step)
