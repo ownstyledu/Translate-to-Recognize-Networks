@@ -49,6 +49,8 @@ class DefaultConfig:
     PHASE = 'train'
     RESUME = False
     RESUME_PATH = None
+    RESUME_PATH_A = None
+    RESUME_PATH_B = None
     NO_FC = True
     INIT_EPOCH = True  # True for load pretrained parameters, False for resume the last training
     START_EPOCH = 1
