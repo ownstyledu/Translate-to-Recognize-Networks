@@ -8,11 +8,11 @@ class RESNET_SUNRGBD_CONFIG:
         model = 'fusion'    # | fusion
         arch = 'resnet18'  # | resnet50
         content_model = 'resnet18'  # | resnet50
-        pretrained = 'imagenet'        # | imagenet
-        content_pretrained = 'imagenet'   # | imagenet
+        pretrained = 'place'        # places model downloaded from http://places2.csail.mit.edu/  | imagenet
+        content_pretrained = 'place'   # | imagenet
 
-        gpus = '2,3'  # gpu no. you can add more gpus with comma, e.g., '0,1,2'
-        batch_size = 80
+        gpus = '0'  # gpu no. you can add more gpus with comma, e.g., '0,1,2'
+        batch_size = 40
 
         log_path = 'summary'            # path for tensorboardX log file
         lr_schedule = 'lambda'          # lambda|step|plateau
@@ -22,22 +22,20 @@ class RESNET_SUNRGBD_CONFIG:
         loss = ['CLS', 'SEMANTIC']      # remove 'CLS' if trained with unlabeled data
         no_upsample = False             # True for removing Decoder network
         unlabeled = False               # True for training with unlabeled data
-        content_model_path = 'resnet18_places365.pth'      # places model downloaded from http://places2.csail.mit.edu/
+        content_model_path = None       # places model downloaded from http://places2.csail.mit.edu/
         content_layers = '0,1,2,3,4'    # layer-wise semantic layers, you can change it to better adapt your task
         alpha_content = 10              # coefficient for content loss
         fix_grad = False
 
         # use generated data while training
         use_fake = False
-        sample_path = os.path.join('trecg_AtoB_100.pth')    # path of saved TrecgNet model for generating fake images
+        sample_path = None    # path of saved TrecgNet model for generating fake images
         resume = False
-        resume_path = os.path.join('/your_saved_model_path')    # path of loading TrecgNet model
+        resume_path = None    # path of loading TrecgNet model
 
         # if we do fusion, we need two tregnets
-        resume_path_A = os.path.join('/home/dudapeng/workspace/trecgnet/', arch, 'sample_model/', content_pretrained,
-                     'trecg_AtoB.pth')
-        resume_path_B = os.path.join('/home/dudapeng/workspace/trecgnet/', arch, 'sample_model/', content_pretrained,
-                     'trecg_BtoA.pth')
+        resume_path_A = None  # the path for RGB TrecgNet
+        resume_path_B = None  # the path for Depth TrecgNet
 
         # current_time = datetime.now().strftime('%b%d_%H-%M-%S')
         # summary_dir_root = '/home/dudapeng/workspace/trecgnet/summary/resnet18'  # dir for saving files from tensorboardX
