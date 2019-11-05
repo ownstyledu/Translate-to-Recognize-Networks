@@ -14,6 +14,9 @@ use ***util.splitimages.py*** to help change the format if neccessary.
    * We provide links to download SUN RGB-D data in ImageFolder format and depth data has been encoded using HHA format.
    1. RGB and depth data is concatenated, [link](http://mcg.nju.edu.cn/dataset/sun-rgbd_conc.tar)
    2. RGB and depth data is stored separately, [link](http://mcg.nju.edu.cn/dataset/sun-rgbd_split.tar)
+   3. ***[Updated 2019.11.5]*** If the links above are not accessible, try (https://pan.baidu.com/s/1LZIF1hlT3k0oX76Ttp660w) The extraction code is: g5vp
+    
+    
 3. Configuration.  
 Almost all the settings of experiments are configurable by the files in the ***config*** package.
 4. Train.  
